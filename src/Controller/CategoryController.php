@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Entity\Article;
 use App\Entity\Category;
 use App\Form\CategoryType;
 use Doctrine\Common\Persistence\ObjectManager;
@@ -10,6 +11,9 @@ use Symfony\Component\HttpFoundation\Response;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\ParamConverter;
 use FOS\RestBundle\Controller\Annotations as FOSRest;
 use FOS\RestBundle\Controller\FOSRestController;
+use Symfony\Component\Serializer\Encoder\JsonEncoder;
+use Symfony\Component\Serializer\Normalizer\ObjectNormalizer;
+use Symfony\Component\Serializer\Serializer;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 
@@ -22,12 +26,22 @@ class CategoryController extends FOSRestController
      *
      * @return Response
      */
-    public function getCategorysAction(ObjectManager $manager)
+    public function getCategoriesAction(ObjectManager $manager)
     {
         $categoryRepository = $manager->getRepository(Category::class);
-        $categorys = $categoryRepository->findAll();
+        $categories = $categoryRepository->findAll();
 
-        return $this->json($categorys, Response::HTTP_OK);
+        $encoders = [new JsonEncoder()]; // If no need for XmlEncoder
+        $normalizers = [new ObjectNormalizer()];
+        $serializer = new Serializer($normalizers, $encoders);
+
+        $jsonObject = $serializer->serialize($categories, 'json', [
+            'circular_reference_handler' => function ($categories) {
+                return $categories;
+            }
+        ]);
+
+        return new Response($jsonObject, 200, ['Content-Type' => 'application/json']);
     }
 
     /**
@@ -50,7 +64,17 @@ class CategoryController extends FOSRestController
             ], Response::HTTP_NOT_FOUND);
         }
 
-        return $this->json($category, Response::HTTP_OK);
+        $encoders = [new JsonEncoder()]; // If no need for XmlEncoder
+        $normalizers = [new ObjectNormalizer()];
+        $serializer = new Serializer($normalizers, $encoders);
+
+        $jsonObject = $serializer->serialize($category, 'json', [
+            'circular_reference_handler' => function ($category) {
+                return $category->getId();
+            }
+        ]);
+
+        return new Response($jsonObject, 200, ['Content-Type' => 'application/json']);
     }
 
     /**
@@ -69,6 +93,7 @@ class CategoryController extends FOSRestController
         $errors = $validator->validate($category);
 
         if (!count($errors)) {
+            $category->setName("New category");
             $manager->persist($category);
             $manager->flush();
 
@@ -94,8 +119,15 @@ class CategoryController extends FOSRestController
         $categoryRepository = $manager->getRepository(Category::class);
         $category = $categoryRepository->find($id);
 
+        $articleRepository = $manager->getRepository(Article::class);
+        $articles = $articleRepository->findBy(array("category" => $category->getId()));
+
         if ($category instanceof Category) {
             $manager->remove($category);
+            foreach ($articles as $article) {
+                $article->setCategory(null);
+                $manager->persist($article);
+            }
             $manager->flush();
             return $this->json([
                 'success' => true,

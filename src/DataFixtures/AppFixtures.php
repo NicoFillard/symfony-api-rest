@@ -35,17 +35,17 @@ class AppFixtures extends Fixture
 
         // Article fixtures and Author fixtures
         for ($i = 0; $i < 10; $i++) {
+            $author = new Author();
+            $author->setFirstname('Firstname' . $i );
+            $author->setLastname('Lastname' . $i );
+            $manager->persist($author);
             $article = new Article();
             $article->setName('Article' . $i );
             $article->setDescription('Lorem ipsum kotlin c\'est bien Symfony c\'est mieux');
             $article->setCategory($categories[rand(0, 9)]);
+            $article->setAuthor($author);
             $manager->persist($article);
             $articles[] = $article;
-            $author = new Author();
-            $author->setFirstname('Firstname' . $i );
-            $author->setLastname('Lastname' . $i );
-            $author->setArticle($article);
-            $manager->persist($author);
 
         }
 
@@ -55,7 +55,7 @@ class AppFixtures extends Fixture
             $comment->setContent('Quand t\'es dans les six mètres il faut marquer !');
             $comment->setArticle($articles[rand(0, 9)]);
             $manager->persist($comment);
-            $categories[] = $comment;
+            $comments[] = $comment;
 
         }
 

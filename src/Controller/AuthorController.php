@@ -10,6 +10,9 @@ use Symfony\Component\HttpFoundation\Response;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\ParamConverter;
 use FOS\RestBundle\Controller\Annotations as FOSRest;
 use FOS\RestBundle\Controller\FOSRestController;
+use Symfony\Component\Serializer\Encoder\JsonEncoder;
+use Symfony\Component\Serializer\Normalizer\ObjectNormalizer;
+use Symfony\Component\Serializer\Serializer;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 
@@ -27,7 +30,17 @@ class AuthorController extends FOSRestController
         $authorRepository = $manager->getRepository(Author::class);
         $authors = $authorRepository->findAll();
 
-        return $this->json($authors, Response::HTTP_OK);
+        $encoders = [new JsonEncoder()]; // If no need for XmlEncoder
+        $normalizers = [new ObjectNormalizer()];
+        $serializer = new Serializer($normalizers, $encoders);
+
+        $jsonObject = $serializer->serialize($authors, 'json', [
+            'circular_reference_handler' => function ($authors) {
+                return $authors;
+            }
+        ]);
+
+        return new Response($jsonObject, 200, ['Content-Type' => 'application/json']);
     }
 
     /**
@@ -50,7 +63,17 @@ class AuthorController extends FOSRestController
             ], Response::HTTP_NOT_FOUND);
         }
 
-        return $this->json($author, Response::HTTP_OK);
+        $encoders = [new JsonEncoder()]; // If no need for XmlEncoder
+        $normalizers = [new ObjectNormalizer()];
+        $serializer = new Serializer($normalizers, $encoders);
+
+        $jsonObject = $serializer->serialize($author, 'json', [
+            'circular_reference_handler' => function ($author) {
+                return $author->getId();
+            }
+        ]);
+
+        return new Response($jsonObject, 200, ['Content-Type' => 'application/json']);
     }
 
     /**
@@ -69,6 +92,8 @@ class AuthorController extends FOSRestController
         $errors = $validator->validate($author);
 
         if (!count($errors)) {
+            $author->setFirstname("New firstname");
+            $author->setLastname("New lastname");
             $manager->persist($author);
             $manager->flush();
 

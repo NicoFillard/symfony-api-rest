@@ -3,6 +3,9 @@
 namespace App\Controller;
 
 use App\Entity\Article;
+use App\Entity\Author;
+use App\Entity\Category;
+use App\Entity\Comment;
 use App\Form\ArticleType;
 use Doctrine\Common\Persistence\ObjectManager;
 use Symfony\Component\HttpFoundation\Request;
@@ -10,6 +13,9 @@ use Symfony\Component\HttpFoundation\Response;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\ParamConverter;
 use FOS\RestBundle\Controller\Annotations as FOSRest;
 use FOS\RestBundle\Controller\FOSRestController;
+use Symfony\Component\Serializer\Encoder\JsonEncoder;
+use Symfony\Component\Serializer\Normalizer\ObjectNormalizer;
+use Symfony\Component\Serializer\Serializer;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 
@@ -27,7 +33,18 @@ class ArticleController extends FOSRestController
         $articleRepository = $manager->getRepository(Article::class);
         $articles = $articleRepository->findAll();
 
-        return $this->json($articles, Response::HTTP_OK);
+
+        $encoders = [new JsonEncoder()]; // If no need for XmlEncoder
+        $normalizers = [new ObjectNormalizer()];
+        $serializer = new Serializer($normalizers, $encoders);
+
+        $jsonObject = $serializer->serialize($articles, 'json', [
+            'circular_reference_handler' => function ($articles) {
+                return $articles;
+            }
+        ]);
+
+        return new Response($jsonObject, 200, ['Content-Type' => 'application/json']);
     }
 
     /**
@@ -50,7 +67,17 @@ class ArticleController extends FOSRestController
             ], Response::HTTP_NOT_FOUND);
         }
 
-        return $this->json($article, Response::HTTP_OK);
+        $encoders = [new JsonEncoder()]; // If no need for XmlEncoder
+        $normalizers = [new ObjectNormalizer()];
+        $serializer = new Serializer($normalizers, $encoders);
+
+        $jsonObject = $serializer->serialize($article, 'json', [
+            'circular_reference_handler' => function ($article) {
+                return $article->getId();
+            }
+        ]);
+
+        return new Response($jsonObject, 200, ['Content-Type' => 'application/json']);
     }
 
     /**
@@ -69,6 +96,7 @@ class ArticleController extends FOSRestController
         $errors = $validator->validate($article);
 
         if (!count($errors)) {
+            $article->setName("New article");
             $manager->persist($article);
             $manager->flush();
 
@@ -94,8 +122,18 @@ class ArticleController extends FOSRestController
         $articleRepository = $manager->getRepository(Article::class);
         $article = $articleRepository->find($id);
 
+        $commentRepository = $manager->getRepository(Comment::class);
+        $comments = $commentRepository->findBy(array("article" => $article->getId()));
+
+        $authorRepository = $manager->getRepository(Author::class);
+        $author = $authorRepository->find($article->getAuthor());
+
         if ($article instanceof Article) {
             $manager->remove($article);
+            foreach ($comments as $comment) {
+                $manager->remove($comment);
+            }
+            $manager->remove($author);
             $manager->flush();
             return $this->json([
                 'success' => true,

@@ -10,6 +10,9 @@ use Symfony\Component\HttpFoundation\Response;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\ParamConverter;
 use FOS\RestBundle\Controller\Annotations as FOSRest;
 use FOS\RestBundle\Controller\FOSRestController;
+use Symfony\Component\Serializer\Encoder\JsonEncoder;
+use Symfony\Component\Serializer\Normalizer\ObjectNormalizer;
+use Symfony\Component\Serializer\Serializer;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 
@@ -27,7 +30,17 @@ class CommentController extends FOSRestController
         $commentRepository = $manager->getRepository(Comment::class);
         $comments = $commentRepository->findAll();
 
-        return $this->json($comments, Response::HTTP_OK);
+        $encoders = [new JsonEncoder()]; // If no need for XmlEncoder
+        $normalizers = [new ObjectNormalizer()];
+        $serializer = new Serializer($normalizers, $encoders);
+
+        $jsonObject = $serializer->serialize($comments, 'json', [
+            'circular_reference_handler' => function ($comments) {
+                return $comments;
+            }
+        ]);
+
+        return new Response($jsonObject, 200, ['Content-Type' => 'application/json']);
     }
 
     /**
@@ -50,7 +63,17 @@ class CommentController extends FOSRestController
             ], Response::HTTP_NOT_FOUND);
         }
 
-        return $this->json($comment, Response::HTTP_OK);
+        $encoders = [new JsonEncoder()]; // If no need for XmlEncoder
+        $normalizers = [new ObjectNormalizer()];
+        $serializer = new Serializer($normalizers, $encoders);
+
+        $jsonObject = $serializer->serialize($comment, 'json', [
+            'circular_reference_handler' => function ($comment) {
+                return $comment->getId();
+            }
+        ]);
+
+        return new Response($jsonObject, 200, ['Content-Type' => 'application/json']);
     }
 
     /**
@@ -69,6 +92,7 @@ class CommentController extends FOSRestController
         $errors = $validator->validate($comment);
 
         if (!count($errors)) {
+            $comment->getContent("New content");
             $manager->persist($comment);
             $manager->flush();
 

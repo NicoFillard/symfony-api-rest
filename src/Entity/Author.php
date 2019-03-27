@@ -26,11 +26,6 @@ class Author
      */
     private $lastname;
 
-    /**
-     * @ORM\OneToOne(targetEntity="App\Entity\Article", cascade={"persist", "remove"})
-     */
-    private $article;
-
     public function getId(): ?int
     {
         return $this->id;
@@ -56,18 +51,6 @@ class Author
     public function setLastname(string $lastname): self
     {
         $this->lastname = $lastname;
-
-        return $this;
-    }
-
-    public function getArticle(): ?Article
-    {
-        return $this->article;
-    }
-
-    public function setArticle(?Article $article): self
-    {
-        $this->article = $article;
 
         return $this;
     }
